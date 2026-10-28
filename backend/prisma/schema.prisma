@@ -1,0 +1,503 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  superadmin
+  admin
+  crew
+  client
+}
+
+enum LeadStatus {
+  new
+  contacted
+  follow_up
+  meeting_scheduled
+  deal
+  lost
+}
+
+enum ProjectStatus {
+  lead
+  confirmed
+  down_payment
+  in_progress
+  editing
+  delivered
+  completed
+  cancelled
+}
+
+enum TransactionType {
+  income
+  expense
+  transfer
+}
+
+enum TeamRole {
+  photographer
+  videographer
+  pilot_drone
+  editor
+  assistant
+}
+
+model User {
+  id           String             @id @default(uuid()) @db.Uuid
+  email        String             @unique @db.VarChar(255)
+  passwordHash String             @map("password_hash") @db.VarChar(255)
+  role         UserRole           @default(admin)
+  isActive     Boolean            @default(true) @map("is_active")
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile      Profile?
+  sessions     UserLoginSession[]
+
+  @@map("users")
+}
+
+model Profile {
+  id                      String                   @id @db.Uuid
+  businessName            String                   @map("business_name") @db.VarChar(255)
+  ownerName               String?                  @map("owner_name") @db.VarChar(255)
+  phone                   String?                  @db.VarChar(50)
+  address                 String?                  @db.Text
+  logoUrl                 String?                  @map("logo_url") @db.Text
+  instagramHandle         String?                  @map("instagram_handle") @db.VarChar(100)
+  websiteUrl              String?                  @map("website_url") @db.Text
+  mobileUiScale           Decimal                  @default(1.00) @map("mobile_ui_scale") @db.Decimal(3, 2)
+  leadSources             Json?                    @default("[\"Instagram\", \"Tiktok\", \"Rekomendasi Klien\", \"Website\", \"Pameran/WO\"]") @map("lead_sources")
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  user                    User                     @relation(fields: [id], references: [id], onDelete: Cascade)
+  leads                   Lead[]
+  packages                Package[]
+  packageAddOns           PackageAddOn[]
+  clients                 Client[]
+  projects                Project[]
+  teamMembers             TeamMember[]
+  cards                   Card[]
+  pockets                 Pocket[]
+  transactions            Transaction[]
+  settings                ProfileSetting[]
+  calendarEvents          CalendarEvent[]
+  teamProjectPayments     TeamProjectPayment[]
+  teamPaymentRecords      TeamPaymentRecord[]
+  storedAssets            StoredAsset[]
+  googleCalendarFeedToken GoogleCalendarFeedToken?
+
+  @@map("profiles")
+}
+
+model UserLoginSession {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  refreshTokenHash String   @map("refresh_token_hash") @db.VarChar(255)
+  ipAddress        String?  @map("ip_address") @db.VarChar(45)
+  userAgent        String?  @map("user_agent") @db.Text
+  deviceName       String?  @map("device_name") @db.VarChar(100)
+  expiresAt        DateTime @map("expires_at") @db.Timestamptz
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], name: "idx_user_login_sessions_user")
+  @@map("user_login_sessions")
+}
+
+model ProfileSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  profileId String   @map("profile_id") @db.Uuid
+  key       String   @db.VarChar(120)
+  value     Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, key])
+  @@map("profile_settings")
+}
+
+model CalendarEvent {
+  id           String      @id @default(uuid()) @db.Uuid
+  profileId    String      @map("profile_id") @db.Uuid
+  title        String      @db.VarChar(255)
+  eventType    String      @map("event_type") @db.VarChar(80)
+  date         DateTime    @db.Date
+  startTime    DateTime?   @map("start_time") @db.Time(0)
+  endTime      DateTime?   @map("end_time") @db.Time(0)
+  projectId    String?     @map("project_id") @db.Uuid
+  clientId     String?     @map("client_id") @db.Uuid
+  teamMemberId String?     @map("team_member_id") @db.Uuid
+  vendorId     String?     @map("vendor_id") @db.Uuid
+  location     String?     @db.Text
+  notes        String?     @db.Text
+  tasks        Json        @default("[]")
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile      Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  project      Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  client       Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  teamMember   TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: SetNull)
+
+  @@index([profileId, date], name: "idx_calendar_events_profile_date")
+  @@map("calendar_events")
+}
+
+model Lead {
+  id              String     @id @default(uuid()) @db.Uuid
+  profileId       String     @map("profile_id") @db.Uuid
+  name            String     @default("") @db.VarChar(255)
+  contactChannel  String?    @map("contact_channel") @db.VarChar(100)
+  location        String?    @db.VarChar(255)
+  contactDate     DateTime   @default(now()) @map("contact_date") @db.Date
+  whatsapp        String?    @db.VarChar(50)
+  address         String?    @db.Text
+  groomName       String?    @map("groom_name") @db.VarChar(150)
+  brideName       String?    @map("bride_name") @db.VarChar(150)
+  phone           String     @db.VarChar(50)
+  email           String?    @db.VarChar(255)
+  eventDate       DateTime?  @map("event_date") @db.Date
+  eventLocation   String?    @map("event_location") @db.VarChar(255)
+  estimatedBudget Decimal    @default(0) @map("estimated_budget") @db.Decimal(15, 2)
+  leadSource      String?    @map("lead_source") @db.VarChar(100)
+  status          LeadStatus @default(new)
+  notes           String?    @db.Text
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile         Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, status], name: "idx_leads_profile_status")
+  @@map("leads")
+}
+
+model Package {
+  id          String    @id @default(uuid()) @db.Uuid
+  profileId   String    @map("profile_id") @db.Uuid
+  name        String    @db.VarChar(200)
+  category    String    @default("Wedding") @db.VarChar(100)
+  price       Decimal   @default(0) @db.Decimal(15, 2)
+  description String?   @db.Text
+  features    Json      @default("[]")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  projects    Project[]
+
+  @@map("packages")
+}
+
+model PackageAddOn {
+  id          String   @id @default(uuid()) @db.Uuid
+  profileId   String   @map("profile_id") @db.Uuid
+  name        String   @db.VarChar(200)
+  price       Decimal  @default(0) @db.Decimal(15, 2)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("package_add_ons")
+}
+
+model Client {
+  id             String          @id @default(uuid()) @db.Uuid
+  profileId      String          @map("profile_id") @db.Uuid
+  name           String          @default("") @db.VarChar(255)
+  avatarUrl      String?         @map("avatar_url") @db.Text
+  whatsapp       String?         @db.VarChar(50)
+  since          DateTime        @default(now()) @db.Date
+  status         String          @default("Aktif") @db.VarChar(50)
+  clientType     String          @default("Langsung") @map("client_type") @db.VarChar(50)
+  lastContact    DateTime?       @map("last_contact") @db.Date
+  portalAccessId String          @unique @default(uuid()) @map("portal_access_id") @db.VarChar(64)
+  homeAddress    String?         @map("home_address") @db.Text
+  groomName      String          @map("groom_name") @db.VarChar(150)
+  brideName      String          @map("bride_name") @db.VarChar(150)
+  phone          String          @db.VarChar(50)
+  email          String?         @db.VarChar(255)
+  instagram      String?         @db.VarChar(100)
+  address        String?         @db.Text
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile        Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  projects       Project[]
+  calendarEvents CalendarEvent[]
+
+  @@index([profileId], name: "idx_clients_profile")
+  @@map("clients")
+}
+
+model Project {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  profileId           String                  @map("profile_id") @db.Uuid
+  clientId            String                  @map("client_id") @db.Uuid
+  packageId           String?                 @map("package_id") @db.Uuid
+  title               String                  @db.VarChar(255)
+  eventDate           DateTime?               @map("event_date") @db.Date
+  venueName           String?                 @map("venue_name") @db.VarChar(255)
+  venueCity           String?                 @map("venue_city") @db.VarChar(100)
+  status              ProjectStatus           @default(confirmed)
+  totalPackagePrice   Decimal                 @default(0) @map("total_package_price") @db.Decimal(15, 2)
+  totalAddonPrice     Decimal                 @default(0) @map("total_addon_price") @db.Decimal(15, 2)
+  discountAmount      Decimal                 @default(0) @map("discount_amount") @db.Decimal(15, 2)
+  grandTotal          Decimal                 @default(0) @map("grand_total") @db.Decimal(15, 2)
+  amountPaid          Decimal                 @default(0) @map("amount_paid") @db.Decimal(15, 2)
+  notes               String?                 @db.Text
+  deletedAt           DateTime?               @map("deleted_at") @db.Timestamptz
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile             Profile                 @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  client              Client                  @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  package             Package?                @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  teamAssignments     ProjectTeamAssignment[]
+  transactions        Transaction[]
+  gallery             Gallery?
+  feedbacks           ClientFeedback[]
+  calendarEvents      CalendarEvent[]
+  teamProjectPayments TeamProjectPayment[]
+
+  @@index([profileId, status], name: "idx_projects_profile_status")
+  @@index([eventDate], name: "idx_projects_event_date")
+  @@map("projects")
+}
+
+model TeamMember {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  profileId           String                  @map("profile_id") @db.Uuid
+  name                String                  @db.VarChar(200)
+  role                TeamRole
+  legacyRole          String?                 @map("legacy_role") @db.VarChar(100)
+  phone               String                  @db.VarChar(50)
+  email               String?                 @db.VarChar(255)
+  standardFee         Decimal                 @default(0) @map("standard_fee") @db.Decimal(15, 2)
+  isActive            Boolean                 @default(true) @map("is_active")
+  avatarUrl           String?                 @map("avatar_url") @db.Text
+  noRek               String?                 @map("no_rek") @db.VarChar(100)
+  bankName            String?                 @map("bank_name") @db.VarChar(100)
+  specialization      String?                 @db.Text
+  location            String?                 @db.VarChar(255)
+  emergencyContact    String?                 @map("emergency_contact") @db.VarChar(100)
+  rating              Decimal                 @default(0) @db.Decimal(3, 2)
+  performanceNotes    Json                    @default("[]") @map("performance_notes")
+  portalAccessId      String                  @unique @default(uuid()) @map("portal_access_id") @db.VarChar(64)
+  category            String                  @default("Tim") @db.VarChar(50)
+  status              String                  @default("Aktif") @db.VarChar(50)
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile             Profile                 @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  assignments         ProjectTeamAssignment[]
+  calendarEvents      CalendarEvent[]
+  teamProjectPayments TeamProjectPayment[]
+  teamPaymentRecords  TeamPaymentRecord[]
+
+  @@map("team_members")
+}
+
+model ProjectTeamAssignment {
+  id           String     @id @default(uuid()) @db.Uuid
+  projectId    String     @map("project_id") @db.Uuid
+  teamMemberId String     @map("team_member_id") @db.Uuid
+  assignedRole TeamRole   @map("assigned_role")
+  agreedFee    Decimal    @default(0) @map("agreed_fee") @db.Decimal(15, 2)
+  isConfirmed  Boolean    @default(false) @map("is_confirmed")
+  notes        String?    @db.Text
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, teamMemberId])
+  @@index([projectId], name: "idx_pta_project")
+  @@map("project_team_assignments")
+}
+
+model Card {
+  id             String        @id @default(uuid()) @db.Uuid
+  profileId      String        @map("profile_id") @db.Uuid
+  name           String?       @db.VarChar(150)
+  cardHolderName String?       @map("card_holder_name") @db.VarChar(150)
+  cardType       String        @default("Debit") @map("card_type") @db.VarChar(50)
+  lastFourDigits String        @default("") @map("last_four_digits") @db.VarChar(4)
+  expiryDate     String?       @map("expiry_date") @db.VarChar(10)
+  colorGradient  String        @default("from-indigo-500 to-blue-500") @map("color_gradient") @db.VarChar(100)
+  bankName       String        @map("bank_name") @db.VarChar(100)
+  accountNumber  String?       @map("account_number") @db.VarChar(100)
+  accountHolder  String?       @map("account_holder") @db.VarChar(150)
+  currentBalance Decimal       @default(0) @map("current_balance") @db.Decimal(15, 2)
+  isPrimary      Boolean       @default(false) @map("is_primary")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile        Profile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+
+  @@map("cards")
+}
+
+model Pocket {
+  id               String        @id @default(uuid()) @db.Uuid
+  profileId        String        @map("profile_id") @db.Uuid
+  name             String        @db.VarChar(150)
+  targetPercentage Decimal       @default(0) @map("target_percentage") @db.Decimal(5, 2)
+  currentAmount    Decimal       @default(0) @map("current_amount") @db.Decimal(15, 2)
+  description      String        @default("") @db.Text
+  icon             String        @default("piggy-bank") @db.VarChar(50)
+  type             String        @default("Nabung & Bayar") @db.VarChar(50)
+  goalAmount       Decimal?      @map("goal_amount") @db.Decimal(15, 2)
+  lockEndDate      DateTime?     @map("lock_end_date") @db.Timestamptz
+  sourceCardId     String?       @map("source_card_id") @db.Uuid
+  members          Json?
+  color            String        @default("#4F46E5") @db.VarChar(20)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile          Profile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  transactions     Transaction[]
+
+  @@map("pockets")
+}
+
+model Transaction {
+  id              String          @id @default(uuid()) @db.Uuid
+  profileId       String          @map("profile_id") @db.Uuid
+  projectId       String?         @map("project_id") @db.Uuid
+  cardId          String?         @map("card_id") @db.Uuid
+  pocketId        String?         @map("pocket_id") @db.Uuid
+  type            TransactionType
+  amount          Decimal         @db.Decimal(15, 2)
+  transactionDate DateTime        @default(now()) @map("transaction_date") @db.Date
+  description     String          @db.Text
+  category        String          @default("") @db.VarChar(100)
+  method          String          @default("Tunai") @db.VarChar(50)
+  referenceNumber String?         @map("reference_number") @db.VarChar(100)
+  proofImageUrl   String?         @map("proof_image_url") @db.Text
+  printingItemId  String?         @map("printing_item_id") @db.VarChar(100)
+  sourceId        String?         @map("source_id") @db.VarChar(100)
+  clientName      String?         @map("client_name") @db.VarChar(255)
+  vendorSignature String?         @map("vendor_signature") @db.Text
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile         Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  project         Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  card            Card?           @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  pocket          Pocket?         @relation(fields: [pocketId], references: [id], onDelete: SetNull)
+
+  @@index([profileId, transactionDate(sort: Desc)], name: "idx_transactions_profile_date")
+  @@index([projectId], name: "idx_transactions_project")
+  @@map("transactions")
+}
+
+model Gallery {
+  id              String        @id @default(uuid()) @db.Uuid
+  projectId       String        @unique @map("project_id") @db.Uuid
+  slug            String        @unique @db.VarChar(255)
+  accessCode      String?       @map("access_code") @db.VarChar(50)
+  coverImageUrl   String?       @map("cover_image_url") @db.Text
+  isPublished     Boolean       @default(false) @map("is_published")
+  downloadAllowed Boolean       @default(true) @map("download_allowed")
+  viewsCount      Int           @default(0) @map("views_count")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items           GalleryItem[]
+
+  @@map("galleries")
+}
+
+model GalleryItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  galleryId        String   @map("gallery_id") @db.Uuid
+  fileName         String   @map("file_name") @db.VarChar(255)
+  filePath         String   @map("file_path") @db.Text
+  thumbnailPath    String?  @map("thumbnail_path") @db.Text
+  fileSizeBytes    BigInt?  @map("file_size_bytes")
+  mimeType         String?  @map("mime_type") @db.VarChar(100)
+  category         String?  @default("Highlights") @db.VarChar(100)
+  isClientFavorite Boolean  @default(false) @map("is_client_favorite")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  gallery          Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId, sortOrder], name: "idx_gallery_items_gallery")
+  @@map("gallery_items")
+}
+
+model ClientFeedback {
+  id                       String   @id @default(uuid()) @db.Uuid
+  projectId                String   @map("project_id") @db.Uuid
+  rating                   Int
+  comment                  String?  @db.Text
+  clientName               String?  @map("client_name") @db.VarChar(200)
+  isApprovedForTestimonial Boolean  @default(false) @map("is_approved_for_testimonial")
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz
+  project                  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("client_feedback")
+}
+
+model TeamProjectPayment {
+  id             String      @id @default(uuid()) @db.Uuid
+  profileId      String      @map("profile_id") @db.Uuid
+  projectId      String      @map("project_id") @db.Uuid
+  teamMemberId   String?     @map("team_member_id") @db.Uuid
+  teamMemberName String      @map("team_member_name") @db.VarChar(200)
+  date           DateTime    @db.Date
+  status         String      @default("Unpaid") @db.VarChar(30)
+  fee            Decimal     @default(0) @db.Decimal(15, 2)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile        Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  teamMember     TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: SetNull)
+
+  @@index([profileId, date], name: "idx_team_project_payments_profile_date")
+  @@map("team_project_payments")
+}
+
+model TeamPaymentRecord {
+  id                String      @id @default(uuid()) @db.Uuid
+  profileId         String      @map("profile_id") @db.Uuid
+  recordNumber      String      @map("record_number") @db.VarChar(100)
+  teamMemberId      String?     @map("team_member_id") @db.Uuid
+  date              DateTime    @db.Date
+  projectPaymentIds Json        @default("[]") @map("project_payment_ids")
+  totalAmount       Decimal     @default(0) @map("total_amount") @db.Decimal(15, 2)
+  vendorSignature   String?     @map("vendor_signature") @db.Text
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  profile           Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  teamMember        TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: SetNull)
+
+  @@index([profileId, date], name: "idx_team_payment_records_profile_date")
+  @@map("team_payment_records")
+}
+
+model StoredAsset {
+  id           String   @id @default(uuid()) @db.Uuid
+  profileId    String   @map("profile_id") @db.Uuid
+  storageKey   String   @unique @map("storage_key") @db.VarChar(255)
+  folder       String   @db.VarChar(120)
+  originalName String   @map("original_name") @db.VarChar(255)
+  mimeType     String   @map("mime_type") @db.VarChar(150)
+  sizeBytes    BigInt   @map("size_bytes")
+  isPublic     Boolean  @default(false) @map("is_public")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, folder], name: "idx_stored_assets_profile_folder")
+  @@map("stored_assets")
+}
+
+model GoogleCalendarFeedToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  profileId String   @unique @map("profile_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash") @db.VarChar(64)
+  createdBy String   @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("google_calendar_feed_tokens")
+}

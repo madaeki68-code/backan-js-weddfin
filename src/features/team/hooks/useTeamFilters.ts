@@ -1,0 +1,202 @@
+/**
+ * useTeamFilters
+ *
+ * Owns:
+ * - Date range filter state (dateFrom, dateTo)
+ * - Status filter state (statusFilter: 'Semua' | 'Aktif' | 'Nonaktif')
+ * - Search query state for teams, employees, vendors, and unpaid payments
+ * - Derived filtered / grouped data consumed by all tabs
+ */
+
+import { useState, useMemo } from 'react';
+import { TeamMember, TeamProjectPayment, Project } from '../../../types';
+import { dedupeCurrentTeamPayments, filterUniqueMembers } from '../utils/teamUtils';
+import { UnpaidPaymentItem } from '../types';
+
+interface UseTeamFiltersParams {
+    teamMembers: TeamMember[];
+    teamProjectPayments: TeamProjectPayment[];
+    projects: Project[];
+}
+
+/** Format tanggal lokal (YYYY-MM-DD) tanpa pergeseran timezone. */
+const toLocalDateString = (date: Date): string =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const getCurrentMonthKey = (): string => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
+/** Ubah kunci bulan (YYYY-MM) menjadi rentang [awal, akhir] tanggal lokal. */
+const monthKeyToRange = (key: string): [string, string] => {
+    if (!key) return ['', ''];
+    const [year, month] = key.split('-').map(Number);
+    if (!year || !month) return ['', ''];
+    return [toLocalDateString(new Date(year, month - 1, 1)), toLocalDateString(new Date(year, month, 0))];
+};
+
+export const useTeamFilters = ({
+    teamMembers,
+    teamProjectPayments,
+    projects,
+}: UseTeamFiltersParams) => {
+    // ── Bulan / rentang tanggal (default: bulan berjalan) ─────────────────────
+    const [monthFilter, setMonthFilter] = useState<string>(getCurrentMonthKey);
+    const [dateFrom, setDateFrom] = useState(() => monthKeyToRange(getCurrentMonthKey())[0]);
+    const [dateTo, setDateTo] = useState(() => monthKeyToRange(getCurrentMonthKey())[1]);
+
+    // ── Status filter ('Semua' | 'Aktif' | 'Nonaktif') ───────────────────────
+    const [statusFilter, setStatusFilter] = useState<'Semua' | 'Aktif' | 'Nonaktif'>('Semua');
+
+    // ── Search queries ───────────────────────────────────────────────────────
+    const [teamSearchQuery, setTeamSearchQuery] = useState('');
+    const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
+    const [vendorSearchQuery, setVendorSearchQuery] = useState('');
+    const [unpaidSearchQuery, setUnpaidSearchQuery] = useState('');
+
+    const resetDateRange = () => {
+        setMonthFilter('');
+        setDateFrom('');
+        setDateTo('');
+    };
+
+    /** Filter bulan: menetapkan rentang tanggal = satu bulan penuh (kosong = semua). */
+    const handleMonthChange = (value: string) => {
+        setMonthFilter(value);
+        const [first, last] = monthKeyToRange(value);
+        setDateFrom(first);
+        setDateTo(last);
+    };
+
+    /** Perubahan tanggal manual membatalkan filter bulan. */
+    const handleDateFromChange = (value: string) => {
+        setMonthFilter('');
+        setDateFrom(value);
+    };
+
+    const handleDateToChange = (value: string) => {
+        setMonthFilter('');
+        setDateTo(value);
+    };
+
+    // ── Date-filtered projects ───────────────────────────────────────────────
+    const projectsInDateRange = useMemo(() => {
+        if (!dateFrom && !dateTo) return projects;
+        return projects.filter(p => {
+            const d = new Date(p.date);
+            if (!p.date || Number.isNaN(d.getTime())) return false;
+            d.setHours(0, 0, 0, 0);
+            if (dateFrom) {
+                const from = new Date(dateFrom);
+                from.setHours(0, 0, 0, 0);
+                if (d < from) return false;
+            }
+            if (dateTo) {
+                const to = new Date(dateTo);
+                to.setHours(23, 59, 59, 999);
+                if (d > to) return false;
+            }
+            return true;
+        });
+    }, [projects, dateFrom, dateTo]);
+
+    // ── Date-filtered team project payments ──────────────────────────────────
+    const teamProjectPaymentsInDateRange = useMemo(() => {
+        if (!dateFrom && !dateTo) return teamProjectPayments;
+        const projectIdsInRange = new Set(projectsInDateRange.map(p => p.id));
+        return dedupeCurrentTeamPayments(
+            teamProjectPayments.filter(p => projectIdsInRange.has(p.projectId)),
+        );
+    }, [teamProjectPayments, projectsInDateRange, dateFrom, dateTo]);
+
+    // ── Member groups (team / employee / vendor split) ───────────────────────
+    const memberGroups = useMemo(
+        () => ({
+            team: teamMembers.filter(m => m.category !== 'Vendor' && m.category !== 'Karyawan'),
+            employee: teamMembers.filter(m => m.category === 'Karyawan'),
+            vendor: teamMembers.filter(m => m.category === 'Vendor'),
+        }),
+        [teamMembers],
+    );
+
+    // ── Filtered member lists ────────────────────────────────────────────────
+    const uniqueTeamMembers = useMemo(
+        () => filterUniqueMembers(memberGroups.team, teamSearchQuery, statusFilter),
+        [memberGroups.team, teamSearchQuery, statusFilter],
+    );
+
+    const uniqueEmployeeMembers = useMemo(
+        () => filterUniqueMembers(memberGroups.employee, employeeSearchQuery, statusFilter),
+        [memberGroups.employee, employeeSearchQuery, statusFilter],
+    );
+
+    const uniqueVendorMembers = useMemo(
+        () => filterUniqueMembers(memberGroups.vendor, vendorSearchQuery, statusFilter),
+        [memberGroups.vendor, vendorSearchQuery, statusFilter],
+    );
+
+    // ── Unpaid payments with joined member + project data ────────────────────
+    const allUnpaidPayments = useMemo((): UnpaidPaymentItem[] => {
+        return teamProjectPaymentsInDateRange
+            .filter(p => p.status === 'Unpaid')
+            .map(p => ({
+                payment: p,
+                member: teamMembers.find(m => m.id === p.teamMemberId),
+                project: projectsInDateRange.find(proj => proj.id === p.projectId),
+            }));
+    }, [teamProjectPaymentsInDateRange, teamMembers, projectsInDateRange]);
+
+    const totalUnpaidAll = useMemo(
+        () => allUnpaidPayments.reduce((sum, item) => sum + item.payment.fee, 0),
+        [allUnpaidPayments],
+    );
+
+    const filteredUnpaidPayments = useMemo(() => {
+        if (!unpaidSearchQuery.trim()) return allUnpaidPayments;
+        const q = unpaidSearchQuery.trim().toLowerCase();
+        return allUnpaidPayments.filter(
+            item =>
+                (item.member?.name && item.member.name.toLowerCase().includes(q)) ||
+                (item.member?.role && item.member.role.toLowerCase().includes(q)) ||
+                (item.project?.projectName && item.project.projectName.toLowerCase().includes(q)) ||
+                (item.payment.role && item.payment.role.toLowerCase().includes(q)),
+        );
+    }, [allUnpaidPayments, unpaidSearchQuery]);
+
+    return {
+        // Date range
+        dateFrom,
+        dateTo,
+        monthFilter,
+        handleMonthChange,
+        handleDateFromChange,
+        handleDateToChange,
+        resetDateRange,
+
+        // Status filter
+        statusFilter,
+        setStatusFilter,
+
+        // Search queries
+        teamSearchQuery,
+        setTeamSearchQuery,
+        employeeSearchQuery,
+        setEmployeeSearchQuery,
+        vendorSearchQuery,
+        setVendorSearchQuery,
+        unpaidSearchQuery,
+        setUnpaidSearchQuery,
+
+        // Derived data
+        projectsInDateRange,
+        teamProjectPaymentsInDateRange,
+        memberGroups,
+        uniqueTeamMembers,
+        uniqueEmployeeMembers,
+        uniqueVendorMembers,
+        allUnpaidPayments,
+        totalUnpaidAll,
+        filteredUnpaidPayments,
+    };
+};

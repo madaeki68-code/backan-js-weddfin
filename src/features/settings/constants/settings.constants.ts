@@ -1,0 +1,178 @@
+import {
+  UsersIcon,
+  MessageSquareIcon,
+  KeyIcon,
+  ListIcon,
+  FileTextIcon,
+  FolderKanbanIcon,
+  DEFAULT_PACKAGE_SHARE_TEMPLATE,
+  DEFAULT_BOOKING_FORM_TEMPLATE,
+  DEFAULT_INVOICE_SHARE_TEMPLATE,
+  DEFAULT_RECEIPT_SHARE_TEMPLATE,
+  DEFAULT_EXPENSE_SHARE_TEMPLATE,
+  DEFAULT_PORTAL_SHARE_TEMPLATE,
+} from '../../../constants';
+import { Bell } from 'lucide-react';
+import { BackgroundImageKey, SettingsTabItem, ShareTemplateConfig, VariableChip } from '../types/settings.types';
+
+export const VARIABLE_CHIPS: readonly VariableChip[] = [
+  { label: '{clientName}', desc: 'Nama pengantin' },
+  { label: '{projectName}', desc: 'Nama acara' },
+  { label: '{packageName}', desc: 'Nama paket' },
+  { label: '{amountPaid}', desc: 'Sudah dibayar' },
+  { label: '{totalCost}', desc: 'Total biaya' },
+  { label: '{sisaTagihan}', desc: 'Sisa pembayaran' },
+  { label: '{portalLink}', desc: 'Link portal pengantin' },
+  { label: '{companyName}', desc: 'Nama perusahaan' },
+];
+
+export const BILLING_VARIABLE_CHIPS: readonly VariableChip[] = [
+  { label: '{clientName}', desc: 'Nama pengantin' },
+  { label: '{projectDetails}', desc: 'Rincian acara & sisa pembayaran per acara' },
+  { label: '{totalDue}', desc: 'Total sisa pembayaran' },
+  { label: '{portalLink}', desc: 'Link portal pengantin' },
+  { label: '{bankAccount}', desc: 'No. rekening bank' },
+  { label: '{companyName}', desc: 'Nama perusahaan' },
+];
+
+export const PREVIEW_VARS: Record<string, string> = {
+  clientName: 'Budi & Ani',
+  projectName: 'Wedding Budi & Ani',
+  packageName: 'Gold Package',
+  amountPaid: 'Rp 5.000.000',
+  totalCost: 'Rp 10.000.000',
+  sisaTagihan: 'Rp 5.000.000',
+  portalLink: 'https://example.com/portal/abc123',
+  projectDetails: '- Acara Pernikahan: *Wedding Budi & Ani*\n  Sisa Pembayaran: Rp 5.000.000',
+  totalDue: 'Rp 5.000.000',
+  bankAccount: 'BCA 1234567890 a.n. Wedding Studio',
+  companyName: 'Wedding Studio',
+  leadName: 'Calon Pengantin',
+  packageLink: 'https://example.com/packages/abc123',
+  bookingFormLink: 'https://example.com/booking/abc123',
+  invoiceLink: 'https://example.com/invoice/abc123',
+  receiptLink: 'https://example.com/receipt/abc123',
+  txDate: '14 Maret 2026',
+  txAmount: 'Rp 2.000.000',
+  txMethod: 'Transfer BCA',
+  txDesc: 'Pelunasan biaya fotografi',
+  targetName: 'Vendor Bunga',
+};
+
+export const SHARE_TEMPLATE_CONFIGS: readonly ShareTemplateConfig[] = [
+  {
+    key: 'packageShareTemplate',
+    label: 'Bagikan Katalog Package',
+    desc: 'Digunakan saat share link katalog package ke Calon Pengantin di halaman Leads.',
+    icon: '',
+    color: 'purple',
+    placeholder: 'Tulis template pesan untuk berbagi katalog package...',
+    defaultValue: DEFAULT_PACKAGE_SHARE_TEMPLATE,
+    variables: [
+      { label: '{leadName}', desc: 'Nama calon pengantin' },
+      { label: '{companyName}', desc: 'Nama perusahaan' },
+      { label: '{packageLink}', desc: 'Link katalog package' },
+    ],
+  },
+  {
+    key: 'bookingFormTemplate',
+    label: 'Kirim Form Booking',
+    desc: 'Digunakan saat mengirim link form booking ke Calon Pengantin.',
+    icon: '',
+    color: 'blue',
+    placeholder: 'Tulis template pesan untuk mengirim form booking...',
+    defaultValue: DEFAULT_BOOKING_FORM_TEMPLATE,
+    variables: [
+      { label: '{leadName}', desc: 'Nama calon pengantin' },
+      { label: '{companyName}', desc: 'Nama perusahaan' },
+      { label: '{bookingFormLink}', desc: 'Link form booking' },
+    ],
+  },
+  {
+    key: 'invoiceShareTemplate',
+    label: 'Kirim Invoice',
+    desc: 'Digunakan saat share link Invoice PDF via WhatsApp dari halaman Acara Pernikahan.',
+    icon: '',
+    color: 'yellow',
+    placeholder: 'Tulis template pesan untuk mengirim invoice...',
+    defaultValue: DEFAULT_INVOICE_SHARE_TEMPLATE,
+    variables: [
+      { label: '{clientName}', desc: 'Nama pengantin' },
+      { label: '{companyName}', desc: 'Nama perusahaan' },
+      { label: '{projectName}', desc: 'Nama acara' },
+      { label: '{totalCost}', desc: 'Total biaya' },
+      { label: '{amountPaid}', desc: 'Sudah dibayar' },
+      { label: '{sisaTagihan}', desc: 'Sisa pembayaran' },
+      { label: '{invoiceLink}', desc: 'Link invoice PDF' },
+    ],
+  },
+  {
+    key: 'receiptShareTemplate',
+    label: 'Kirim Tanda Terima Pelanggan',
+    desc: 'Digunakan saat share Tanda Terima Pembayaran PDF ke pelanggan.',
+    icon: '',
+    color: 'green',
+    placeholder: 'Tulis template pesan untuk mengirim tanda terima...',
+    defaultValue: DEFAULT_RECEIPT_SHARE_TEMPLATE,
+    variables: [
+      { label: '{clientName}', desc: 'Nama pengantin' },
+      { label: '{companyName}', desc: 'Nama perusahaan' },
+      { label: '{projectName}', desc: 'Nama acara' },
+      { label: '{txDate}', desc: 'Tanggal transaksi' },
+      { label: '{txAmount}', desc: 'Jumlah pembayaran' },
+      { label: '{txMethod}', desc: 'Metode pembayaran' },
+      { label: '{txDesc}', desc: 'Keterangan transaksi' },
+      { label: '{receiptLink}', desc: 'Link tanda terima PDF' },
+    ],
+  },
+  {
+    key: 'expenseShareTemplate',
+    label: 'Kirim Slip Pengeluaran',
+    desc: 'Digunakan saat share Bukti Pengeluaran / Slip Pembayaran ke vendor/supplier.',
+    icon: '',
+    color: 'red',
+    placeholder: 'Tulis template pesan untuk mengirim slip pengeluaran...',
+    defaultValue: DEFAULT_EXPENSE_SHARE_TEMPLATE,
+    variables: [
+      { label: '{targetName}', desc: 'Nama penerima / vendor' },
+      { label: '{companyName}', desc: 'Nama perusahaan' },
+      { label: '{txDate}', desc: 'Tanggal transaksi' },
+      { label: '{txAmount}', desc: 'Jumlah pembayaran' },
+      { label: '{txMethod}', desc: 'Metode pembayaran' },
+      { label: '{txDesc}', desc: 'Keterangan transaksi' },
+      { label: '{receiptLink}', desc: 'Link slip PDF' },
+    ],
+  },
+  {
+    key: 'portalShareTemplate',
+    label: 'Share Portal Pengantin',
+    desc: 'Digunakan saat membagikan link Portal Pengantin.',
+    icon: '',
+    color: 'cyan',
+    placeholder: 'Tulis template pesan untuk share portal pengantin...',
+    defaultValue: DEFAULT_PORTAL_SHARE_TEMPLATE,
+    variables: [
+      { label: '{clientName}', desc: 'Nama pengantin' },
+      { label: '{companyName}', desc: 'Nama perusahaan' },
+      { label: '{portalLink}', desc: 'Link portal pengantin' },
+    ],
+  },
+] as const;
+
+export const BACKGROUND_IMAGE_CONFIG: readonly { key: BackgroundImageKey; label: string }[] = [
+  { key: 'clientDetail', label: 'Detail Pengantin' },
+  { key: 'eventDetail', label: 'Detail Acara' },
+  { key: 'bookingForm', label: 'Form Booking' },
+  { key: 'portalPengantin', label: 'Portal Pengantin' },
+  { key: 'leadForm', label: 'Form Inquiry' },
+];
+
+export const SETTINGS_TABS: readonly SettingsTabItem[] = [
+  { id: 'profile', label: 'Profil Saya', icon: UsersIcon, adminOnly: false },
+  { id: 'chatTemplates', label: 'Template Chat', icon: MessageSquareIcon, adminOnly: false },
+  { id: 'webPush', label: 'Notifikasi Web Push', icon: Bell, adminOnly: false },
+  { id: 'users', label: 'Pengguna', icon: KeyIcon, adminOnly: true },
+  { id: 'categories', label: 'Kustomisasi Kategori', icon: ListIcon, adminOnly: false },
+  { id: 'uiText', label: 'Kustomisasi Teks', icon: FileTextIcon, adminOnly: false },
+  { id: 'projectStatus', label: 'Progres Acara Pernikahan Pengantin', icon: FolderKanbanIcon, adminOnly: true },
+];
